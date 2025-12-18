@@ -72,6 +72,33 @@ async function run() {
       res.send(result);
     });
 
+    // all users
+    app.get("/users", verifyFBToken, async (req, res) => {
+      const result = await userCollection.find().toArray();
+      res.status(200).send(result);
+    });
+
+    // // single user
+    // app.get('/users/:email', async (req, res)=>{
+    //   const email = req.params.email;
+
+    //   const query = {email:email};
+    //   const result = await userCollection.findo
+    // })
+
+    // update status blocked activate
+    app.patch("/update/user/status", verifyFBToken, async (req, res) => {
+      const { email, status } = req.query;
+      const query = { email: email };
+      const updateStatus = {
+        $set: {
+          status: status,
+        },
+      };
+      const result = await userCollection.updateOne(query,updateStatus);
+      res.send(result);
+    });
+
     // requests
 
     app.post("/requests", verifyFBToken, async (req, res) => {
