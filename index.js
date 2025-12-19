@@ -86,6 +86,23 @@ async function run() {
     //   const result = await userCollection.findo
     // })
 
+    // my request
+    app.get("/my-request", verifyFBToken, async (req, res) => {
+      const email = req.decoded_email;
+      const size = Number(req.query.size);
+      const page = Number(req.query.page);
+      const query = { requester_email: email };
+      const result = await requestsCollection
+        .find(query)
+        .limit(size)
+        .skip(size * page)
+        .toArray();
+      
+      const totalRequest = await requestsCollection.countDocuments(query);
+
+      res.send({request: result, totalRequest});
+    });
+
     // update status blocked activate
     app.patch("/update/user/status", verifyFBToken, async (req, res) => {
       const { email, status } = req.query;
@@ -95,7 +112,7 @@ async function run() {
           status: status,
         },
       };
-      const result = await userCollection.updateOne(query,updateStatus);
+      const result = await userCollection.updateOne(query, updateStatus);
       res.send(result);
     });
 
