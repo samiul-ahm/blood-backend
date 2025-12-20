@@ -2,7 +2,7 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const port = process.env.PORT || 4000;
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 const stripe = require("stripe")(process.env.STRIPE_SECRET);
 const crypto = require("crypto");
@@ -84,6 +84,32 @@ async function run() {
       res.status(200).send(result);
     });
 
+    //  status change
+    app.patch("/requests/:id/status", async (req, res) => {
+      const { id } = req.params;
+      const { status } = req.body; 
+
+      if (!status) {
+        return res.status(400).send({ message: "Status is required" });
+      }
+
+      try {
+        const result = await requestsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { donation_status: status } }
+        );
+
+        if (result.matchedCount === 0) {
+          return res.status(404).send({ message: "Request not found" });
+        }
+
+        res.send({ message: "Status updated successfully" });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
     // // single user
     // app.get('/users/:email', async (req, res)=>{
     //   const email = req.params.email;
@@ -107,6 +133,37 @@ async function run() {
       const totalRequest = await requestsCollection.countDocuments(query);
 
       res.send({ request: result, totalRequest });
+    });
+
+    // all request show
+
+    app.get("/all-requests", async (req, res) => {
+      const page = Number(req.query.page) || 0;
+      const limit = Number(req.query.limit) || 6;
+
+      const skip = page * limit;
+
+      const requests = await requestsCollection
+        .find()
+        .sort({ CreatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .toArray();
+
+      const total = await requestsCollection.countDocuments();
+
+      res.send({
+        requests,
+        total,
+      });
+    });
+
+    // get single request by id
+    app.get("/requests/:id", async (req, res) => {
+      const { id } = req.params;
+      const query = { _id: new ObjectId(id) };
+      const result = await requestsCollection.findOne(query);
+      res.send(result);
     });
 
     // update status blocked activate
