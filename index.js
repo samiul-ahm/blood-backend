@@ -178,8 +178,31 @@ async function run() {
           paidAT: new Date(),
         };
         const result = await paymentsCollection.insertOne(paymentInfo);
-        return res.send(result);
       }
+    });
+
+    // search
+    app.get("/search-requests", async (req, res) => {
+      const { bloodGroup, district, upazilla } = req.query;
+      console.log(req.query);
+      const query = {};
+      if (!query) {
+        return;
+      }
+      if (bloodGroup) {
+        query.bloodGroup = bloodGroup.trim().toUpperCase();
+      }
+      if (district) {
+        query.recipient_district = district;
+      }
+      if (upazilla) {
+        query.recipient_upazilla = upazilla;
+      }
+
+      console.log(query);
+
+      const result = await requestsCollection.find(query).toArray();
+      res.send(result);
     });
 
     // requests
