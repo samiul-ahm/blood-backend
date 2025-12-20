@@ -4,6 +4,9 @@ require("dotenv").config();
 const port = process.env.PORT || 4000;
 const { MongoClient, ServerApiVersion } = require("mongodb");
 
+const stripe = require("stripe")(process.env.STRIPE_SECRET);
+const crypto = require("crypto");
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -27,6 +30,8 @@ const verifyFBToken = async (req, res, next) => {
 };
 
 const admin = require("firebase-admin");
+const { info } = require("console");
+const { url } = require("inspector");
 
 // const serviceAccount = require("./firebase-admin-key.json");
 
@@ -60,6 +65,7 @@ async function run() {
     const database = client.db("missionscic11DB");
     const userCollection = database.collection("user");
     const requestsCollection = database.collection("requests");
+    const paymentsCollection = database.collection("payments");
 
     //
     app.post("/users", async (req, res) => {
@@ -97,10 +103,10 @@ async function run() {
         .limit(size)
         .skip(size * page)
         .toArray();
-      
+
       const totalRequest = await requestsCollection.countDocuments(query);
 
-      res.send({request: result, totalRequest});
+      res.send({ request: result, totalRequest });
     });
 
     // update status blocked activate
@@ -114,6 +120,66 @@ async function run() {
       };
       const result = await userCollection.updateOne(query, updateStatus);
       res.send(result);
+    });
+
+    // payments
+    app.post("/create-payment-checkout", async (req, res) => {
+      const information = req.body;
+      const amount = parseInt(information.donateAmount) * 100;
+
+      const session = await stripe.checkout.sessions.create({
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              unit_amount: amount,
+              product_data: {
+                name: "please donate",
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        metadata: {
+          donarName: information.donarName,
+        },
+        customer_email: information.donarEmail,
+        success_url: `${process.env.SITE_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.SITE_DOMAIN}/payment-cancelled`,
+      });
+
+      res.send({ url: session.url });
+    });
+
+    app.post("/success-payment", async (req, res) => {
+      const { session_id } = req.query;
+      //  console.log(session_id);
+      const session = await stripe.checkout.sessions.retrieve(session_id);
+      console.log(session);
+
+      const transactionId = session.payment_intent;
+
+      const isPaymentExist = await paymentsCollection.findOne({
+        transactionId,
+      });
+
+      if (isPaymentExist) {
+        return;
+      }
+
+      if (session.payment_status == "paid") {
+        const paymentInfo = {
+          amount: session.amount_total / 100,
+          currency: session.currency,
+          donarEmail: session.customer_email,
+          transactionId,
+          payment_status: session.payment_status,
+          paidAT: new Date(),
+        };
+        const result = await paymentsCollection.insertOne(paymentInfo);
+        return res.send(result);
+      }
     });
 
     // requests
