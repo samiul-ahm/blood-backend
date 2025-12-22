@@ -111,6 +111,57 @@ async function run() {
       }
     });
 
+
+    // Change User Role (Make Volunteer/Admin)
+app.patch("/users/role/:email", verifyFBToken, async (req, res) => {
+  const { email } = req.params;
+  const { role } = req.body; 
+
+  const requesterEmail = req.decoded_email;
+  const requester = await userCollection.findOne({ email: requesterEmail });
+  if (requester?.role !== 'admin') {
+    return res.status(403).send({ message: "Forbidden: Only admins can change roles" });
+  }
+
+  const filter = { email: email };
+  const updateDoc = {
+    $set: { role: role },
+  };
+
+  const result = await userCollection.updateOne(filter, updateDoc);
+  res.send(result);
+});
+
+// Change User Role API
+app.patch("/users/role/:email", verifyFBToken, async (req, res) => {
+  const email = req.params.email;
+  const { role } = req.body;
+  const query = { email: email };
+  const updateDoc = {
+    $set: { role: role },
+  };
+  const result = await userCollection.updateOne(query, updateDoc);
+  res.send(result);
+});
+
+// Delete a donation request (Admin Only)
+app.delete("/requests/:id", verifyFBToken, async (req, res) => {
+  const { id } = req.params;
+  
+  // Security Check
+  const requesterEmail = req.decoded_email;
+  const user = await userCollection.findOne({ email: requesterEmail });
+  
+  if (user?.role !== 'admin') {
+    return res.status(403).send({ message: "Access Denied: Only Admins can delete requests" });
+  }
+
+  const query = { _id: new ObjectId(id) };
+  const result = await requestsCollection.deleteOne(query);
+  res.send(result);
+});
+
+
     // my request
     app.get("/my-request", verifyFBToken, async (req, res) => {
       const email = req.decoded_email;
