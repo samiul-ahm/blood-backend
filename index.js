@@ -85,19 +85,20 @@ async function run() {
     });
 
     //  status change
-    app.patch("/requests/:id/status", async (req, res) => {
-      const { id } = req.params;
-      const { status } = req.body; 
-
-      if (!status) {
-        return res.status(400).send({ message: "Status is required" });
-      }
-
+    // update donation status
+    app.patch("/requests/:id/status", verifyFBToken, async (req, res) => {
       try {
-        const result = await requestsCollection.updateOne(
-          { _id: new ObjectId(id) },
-          { $set: { donation_status: status } }
-        );
+        const { id } = req.params;
+        const { status } = req.body;
+
+        if (!status) {
+          return res.status(400).send({ message: "Status is required" });
+        }
+
+        const query = { _id: new ObjectId(id) };
+        const update = { $set: { donation_status: status } };
+
+        const result = await requestsCollection.updateOne(query, update);
 
         if (result.matchedCount === 0) {
           return res.status(404).send({ message: "Request not found" });
@@ -106,17 +107,9 @@ async function run() {
         res.send({ message: "Status updated successfully" });
       } catch (error) {
         console.error(error);
-        res.status(500).send({ message: "Internal server error" });
+        res.status(500).send({ message: "Server error" });
       }
     });
-
-    // // single user
-    // app.get('/users/:email', async (req, res)=>{
-    //   const email = req.params.email;
-
-    //   const query = {email:email};
-    //   const result = await userCollection.findo
-    // })
 
     // my request
     app.get("/my-request", verifyFBToken, async (req, res) => {
@@ -134,6 +127,30 @@ async function run() {
 
       res.send({ request: result, totalRequest });
     });
+
+    // admin stat
+    
+app.get("/admin-stats", verifyFBToken, async (req, res) => {
+  const totalUsers = await userCollection.countDocuments();
+  const totalRequests = await requestsCollection.countDocuments();
+  
+  const fundingData = await paymentsCollection.aggregate([
+    {
+      $group: {
+        _id: null,
+        totalAmount: { $sum: "$amount" }
+      }
+    }
+  ]).toArray();
+
+  const totalFunding = fundingData.length > 0 ? fundingData[0].totalAmount : 0;
+
+  res.send({
+    totalUsers,
+    totalFunding,
+    totalRequests
+  });
+});
 
     // all request show
 
